@@ -75,6 +75,13 @@
             background-color: #e8f5e9;
             border-radius: 5px;
         }
+        .consolidated-link {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #bbdefb;
+            border-radius: 5px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -184,7 +191,13 @@
         <div class="results" id="results">
             <h3>Résultats:</h3>
             <p id="score-display"></p>
-            <p>Les réponses consolidées sont disponibles sur le <a href="#" id="results-link">site web</a>.</p>
+        </div>
+        
+        <div class="consolidated-link" id="consolidated-link" style="display: none;">
+            <h3>Accès aux résultats consolidés</h3>
+            <p>Pour voir tous les résultats, veuillez utiliser le lien suivant avec le code d'accès <strong>1981</strong>:</p>
+            <p><a href="#" id="results-link">https://votresiteweb.com/resultats-consolides?code=1981</a></p>
+            <p><small>Ce lien sera actif après la première soumission.</small></p>
         </div>
     </div>
 
@@ -266,8 +279,13 @@
             document.getElementById('score-display').textContent = `Votre score: ${score}/10`;
             document.getElementById('results').style.display = 'block';
             
+            // Afficher le lien consolidé
+            document.getElementById('consolidated-link').style.display = 'block';
+            
             // Configurer le lien des résultats
-            document.getElementById('results-link').href = `https://votresiteweb.com/resultats?code=1981&score=${score}`;
+            const resultsLink = document.getElementById('results-link');
+            resultsLink.href = `https://votresiteweb.com/resultats-consolides?code=1981&score=${score}&date=${now.toISOString()}`;
+            resultsLink.textContent = `https://votresiteweb.com/resultats-consolides?code=1981`;
             
             // Désactiver le bouton de soumission
             document.getElementById('submit-btn').disabled = true;
@@ -277,6 +295,7 @@
         document.getElementById('reset-btn').addEventListener('click', function() {
             document.getElementById('quiz-form').reset();
             document.getElementById('results').style.display = 'none';
+            document.getElementById('consolidated-link').style.display = 'none';
             document.getElementById('submit-btn').disabled = false;
             
             // Réinitialiser le timer
