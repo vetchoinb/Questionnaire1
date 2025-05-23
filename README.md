@@ -92,21 +92,51 @@
             font-size: 1.2em;
             margin-top: 10px;
         }
-        .consolidated-results {
+        .history-container {
             margin-top: 30px;
+            background-color: #e8f5e9;
+            padding: 20px;
+            border-radius: 5px;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+        .history-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
         }
-        th {
-            background-color: #f2f2f2;
+        .history-title {
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        .history-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .history-responses {
+            margin-top: 10px;
+        }
+        .response-row {
+            display: flex;
+            margin-bottom: 5px;
+        }
+        .response-question {
+            font-weight: bold;
+            width: 150px;
+        }
+        .response-answer {
+            flex-grow: 1;
+        }
+        .locked {
+            opacity: 0.6;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -116,7 +146,7 @@
         <p id="date-display"></p>
     </div>
     
-    <div class="form-container">
+    <div class="form-container" id="questionnaire">
         <div class="timer">
             Temps restant: <span id="time">02:00</span>
         </div>
@@ -211,45 +241,33 @@
             </div>
             
             <button type="submit" id="submit-btn">Soumettre</button>
-            <button type="button" id="reset-btn" style="background-color: #f44336;">Nouveau Questionnaire</button>
+            <button type="button" id="reset-btn" style="background-color: #f44336;">Nouvelle tentative</button>
         </form>
     </div>
 
-    <div class="results-container" id="results" style="display: none;">
-        <h2>Résultats</h2>
+    <div class="results-container" id="current-results" style="display: none;">
+        <h2>Résultats de la dernière soumission</h2>
         <div id="individual-results"></div>
         <div class="final-score" id="final-score"></div>
     </div>
 
-    <div class="results-container consolidated-results" id="consolidated-results" style="display: none;">
-        <h2>Résultats Consolidés</h2>
-        <table id="results-table">
-            <thead>
-                <tr>
-                    <th>Nom</th>
-                    <th>Sexe</th>
-                    <th>Score</th>
-                    <th>Date</th>
-                </tr>
-            </thead>
-            <tbody id="results-body">
-            </tbody>
-        </table>
+    <div class="history-container" id="history-container">
+        <h2>Historique des soumissions</h2>
+        <div id="history-items"></div>
     </div>
 
     <script>
         // Stockage des résultats
         let allResults = [];
+        let timer;
+        let timeLeft = 120;
         
         // Afficher la date actuelle
         const now = new Date();
-        const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        document.getElementById('date-display').textContent = 'Date de collecte: ' + now.toLocaleDateString('fr-FR', options);
+        const dateOptions = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        document.getElementById('date-display').textContent = 'Date de collecte: ' + now.toLocaleDateString('fr-FR', dateOptions);
         
-        // Configuration du timer
-        let timeLeft = 120;
-        let timer;
-        
+        // Démarrer le timer
         function startTimer() {
             timeLeft = 120;
             updateTimerDisplay();
@@ -276,17 +294,17 @@
         }
         
         function lockQuestionnaire() {
-            document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
-                input.disabled = true;
+            document.getElementById('quiz-form').querySelectorAll('input, button').forEach(element => {
+                element.disabled = true;
             });
-            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('questionnaire').classList.add('locked');
         }
         
         function unlockQuestionnaire() {
-            document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
-                input.disabled = false;
+            document.getElementById('quiz-form').querySelectorAll('input, button').forEach(element => {
+                element.disabled = false;
             });
-            document.getElementById('submit-btn').disabled = false;
+            document.getElementById('questionnaire').classList.remove('locked');
         }
         
         // Gestion de la soumission du formulaire
@@ -294,137 +312,168 @@
             e.preventDefault();
             
             // Récupérer les données du formulaire
-            const nom = document.getElementById('nom').value;
-            const sexe = document.querySelector('input[name="sexe"]:checked').value;
-            const date = new Date();
+            const formData = {
+                nom: document.getElementById('nom').value,
+                sexe: document.querySelector('input[name="sexe"]:checked').value,
+                q1: document.getElementById('q1').value,
+                q2: document.querySelector('input[name="q2"]:checked')?.value || '',
+                q3: document.querySelector('input[name="q3"]:checked')?.value || '',
+                q4: document.querySelector('input[name="q4"]:checked')?.value || '',
+                q5: document.getElementById('q5').value,
+                q6: document.getElementById('q6').value,
+                q7: document.getElementById('q7').value,
+                q8: document.getElementById('q8').value,
+                q9: document.getElementById('q9').value,
+                q10: document.getElementById('q10').value,
+                date: new Date()
+            };
             
             // Calcul du score
             let score = 0;
             const results = [];
             
             // Question 1
-            const q1 = document.getElementById('q1').value.trim().toLowerCase();
-            const q1Correct = q1 === 'ouagadougou';
+            const q1Correct = formData.q1.trim().toLowerCase() === 'ouagadougou';
             if (q1Correct) score += 1;
-            results.push({ question: 1, correct: q1Correct });
+            results.push({ question: 1, correct: q1Correct, answer: formData.q1 });
             
             // Question 2
-            const q2 = document.querySelector('input[name="q2"]:checked');
-            const q2Correct = q2 && q2.value === 'Koudougou';
+            const q2Correct = formData.q2 === 'Koudougou';
             if (q2Correct) score += 1;
-            results.push({ question: 2, correct: q2Correct });
+            results.push({ question: 2, correct: q2Correct, answer: formData.q2 });
             
             // Question 3
-            const q3 = document.querySelector('input[name="q3"]:checked');
-            const q3Correct = q3 && q3.value === 'Vrai';
+            const q3Correct = formData.q3 === 'Vrai';
             if (q3Correct) score += 1;
-            results.push({ question: 3, correct: q3Correct });
+            results.push({ question: 3, correct: q3Correct, answer: formData.q3 });
             
             // Question 4
-            const q4 = document.querySelector('input[name="q4"]:checked');
-            const q4Correct = q4 && q4.value === 'rouge';
+            const q4Correct = formData.q4 === 'rouge';
             if (q4Correct) score += 1;
-            results.push({ question: 4, correct: q4Correct });
+            results.push({ question: 4, correct: q4Correct, answer: formData.q4 });
             
             // Question 5
-            const q5 = document.getElementById('q5').value.trim();
-            const q5Correct = q5 === '144';
+            const q5Correct = formData.q5.trim() === '144';
             if (q5Correct) score += 1;
-            results.push({ question: 5, correct: q5Correct });
+            results.push({ question: 5, correct: q5Correct, answer: formData.q5 });
             
             // Question 6
-            const q6 = document.getElementById('q6').value.trim().toLowerCase();
-            const q6Correct = q6 === 'françois';
+            const q6Correct = formData.q6.trim().toLowerCase() === 'françois';
             if (q6Correct) score += 1;
-            results.push({ question: 6, correct: q6Correct });
+            results.push({ question: 6, correct: q6Correct, answer: formData.q6 });
             
             // Question 7
-            const q7 = document.getElementById('q7').value.trim();
-            const q7Correct = q7 === '17';
+            const q7Correct = formData.q7.trim() === '17';
             if (q7Correct) score += 1;
-            results.push({ question: 7, correct: q7Correct });
+            results.push({ question: 7, correct: q7Correct, answer: formData.q7 });
             
             // Question 8
-            const q8 = document.getElementById('q8').value.trim().toLowerCase();
-            const q8Correct = q8 === 'hervé';
+            const q8Correct = formData.q8.trim().toLowerCase() === 'hervé';
             if (q8Correct) score += 1;
-            results.push({ question: 8, correct: q8Correct });
+            results.push({ question: 8, correct: q8Correct, answer: formData.q8 });
             
             // Question 9
-            const q9 = document.getElementById('q9').value.trim();
-            const q9Correct = q9 === '1960';
+            const q9Correct = formData.q9.trim() === '1960';
             if (q9Correct) score += 1;
-            results.push({ question: 9, correct: q9Correct });
+            results.push({ question: 9, correct: q9Correct, answer: formData.q9 });
             
             // Question 10
-            const q10 = document.getElementById('q10').value.trim().toLowerCase();
-            const q10Correct = q10 === 'lion';
+            const q10Correct = formData.q10.trim().toLowerCase() === 'lion';
             if (q10Correct) score += 1;
-            results.push({ question: 10, correct: q10Correct });
+            results.push({ question: 10, correct: q10Correct, answer: formData.q10 });
             
             // Stocker le résultat
             const resultEntry = {
-                nom,
-                sexe,
+                nom: formData.nom,
+                sexe: formData.sexe,
                 score,
-                date: date.toLocaleString('fr-FR', options),
-                details: results
+                date: formData.date,
+                results,
+                formData
             };
             
             allResults.push(resultEntry);
             
-            // Afficher les résultats individuels
-            displayIndividualResults(resultEntry);
-            
-            // Afficher les résultats consolidés
-            displayConsolidatedResults();
+            // Afficher les résultats
+            displayCurrentResults(resultEntry);
+            displayHistory();
             
             // Désactiver le bouton de soumission
             document.getElementById('submit-btn').disabled = true;
         });
         
-        function displayIndividualResults(result) {
+        function displayCurrentResults(result) {
             const container = document.getElementById('individual-results');
             container.innerHTML = '';
             
-            result.details.forEach((item, index) => {
+            result.results.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
-                div.innerHTML = `Question ${index + 1}: <span class="${item.correct ? 'correct' : 'incorrect'}">${item.correct ? 'Correct (1 point)' : 'Incorrect (0 point)'}</span>`;
+                div.innerHTML = `Question ${index + 1}: <span class="${item.correct ? 'correct' : 'incorrect'}">${item.correct ? 'Correct (1 point)' : 'Incorrect (0 point)'}</span> - Réponse: ${item.answer}`;
                 container.appendChild(div);
             });
             
             document.getElementById('final-score').textContent = `Score final: ${result.score}/10`;
-            document.getElementById('results').style.display = 'block';
+            document.getElementById('current-results').style.display = 'block';
         }
         
-        function displayConsolidatedResults() {
-            const tbody = document.getElementById('results-body');
-            tbody.innerHTML = '';
+        function displayHistory() {
+            const container = document.getElementById('history-items');
+            container.innerHTML = '';
             
-            allResults.forEach(result => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${result.nom}</td>
-                    <td>${result.sexe}</td>
-                    <td>${result.score}/10</td>
-                    <td>${result.date}</td>
+            if (allResults.length === 0) {
+                container.innerHTML = '<p>Aucune soumission enregistrée.</p>';
+                return;
+            }
+            
+            allResults.forEach((result, index) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                
+                const header = document.createElement('div');
+                header.className = 'history-header';
+                header.innerHTML = `
+                    <span class="history-title">Soumission ${index + 1} - ${result.nom}</span>
+                    <span class="history-date">${result.date.toLocaleString('fr-FR', dateOptions)}</span>
                 `;
-                tbody.appendChild(tr);
+                
+                const score = document.createElement('div');
+                score.className = 'final-score';
+                score.textContent = `Score: ${result.score}/10`;
+                
+                const responses = document.createElement('div');
+                responses.className = 'history-responses';
+                
+                result.results.forEach((q, qIndex) => {
+                    const row = document.createElement('div');
+                    row.className = 'response-row';
+                    row.innerHTML = `
+                        <span class="response-question">Question ${qIndex + 1}:</span>
+                        <span class="response-answer ${q.correct ? 'correct' : 'incorrect'}">${q.answer} (${q.correct ? '1 point' : '0 point'})</span>
+                    `;
+                    responses.appendChild(row);
+                });
+                
+                item.appendChild(header);
+                item.appendChild(score);
+                item.appendChild(responses);
+                container.appendChild(item);
             });
-            
-            document.getElementById('consolidated-results').style.display = 'block';
         }
         
         // Réinitialisation du formulaire
         document.getElementById('reset-btn').addEventListener('click', function() {
             document.getElementById('quiz-form').reset();
+            document.getElementById('current-results').style.display = 'none';
             unlockQuestionnaire();
             startTimer();
         });
         
         // Démarrer le timer au chargement
         startTimer();
+        
+        // Afficher l'historique vide au départ
+        displayHistory();
     </script>
 </body>
 </html>
