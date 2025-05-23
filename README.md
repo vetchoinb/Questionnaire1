@@ -24,6 +24,7 @@
             padding: 20px;
             border-radius: 0 0 5px 5px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         .form-group {
             margin-bottom: 15px;
@@ -42,7 +43,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
-        .radio-group, .checkbox-group {
+        .radio-group {
             margin-top: 5px;
         }
         .timer {
@@ -60,6 +61,7 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #45a049;
@@ -68,19 +70,43 @@
             background-color: #cccccc;
             cursor: not-allowed;
         }
-        .results {
-            display: none;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #e8f5e9;
+        .results-container {
+            background-color: white;
+            padding: 20px;
             border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 20px;
         }
-        .consolidated-link {
+        .result-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .correct {
+            color: #4CAF50;
+        }
+        .incorrect {
+            color: #f44336;
+        }
+        .final-score {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        .consolidated-results {
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
             margin-top: 20px;
-            padding: 15px;
-            background-color: #bbdefb;
-            border-radius: 5px;
-            text-align: center;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
         }
     </style>
 </head>
@@ -187,126 +213,218 @@
             <button type="submit" id="submit-btn">Soumettre</button>
             <button type="button" id="reset-btn" style="background-color: #f44336;">Nouveau Questionnaire</button>
         </form>
-        
-        <div class="results" id="results">
-            <h3>Résultats:</h3>
-            <p id="score-display"></p>
-        </div>
-        
-        <div class="consolidated-link" id="consolidated-link" style="display: none;">
-            <h3>Accès aux résultats consolidés</h3>
-            <p>Pour voir tous les résultats, veuillez utiliser le lien suivant avec le code d'accès <strong>1981</strong>:</p>
-            <p><a href="#" id="results-link">https://votresiteweb.com/resultats-consolides?code=1981</a></p>
-            <p><small>Ce lien sera actif après la première soumission.</small></p>
-        </div>
+    </div>
+
+    <div class="results-container" id="results" style="display: none;">
+        <h2>Résultats</h2>
+        <div id="individual-results"></div>
+        <div class="final-score" id="final-score"></div>
+    </div>
+
+    <div class="results-container consolidated-results" id="consolidated-results" style="display: none;">
+        <h2>Résultats Consolidés</h2>
+        <table id="results-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Sexe</th>
+                    <th>Score</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+            </tbody>
+        </table>
     </div>
 
     <script>
+        // Stockage des résultats
+        let allResults = [];
+        
         // Afficher la date actuelle
         const now = new Date();
-        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
         document.getElementById('date-display').textContent = 'Date de collecte: ' + now.toLocaleDateString('fr-FR', options);
         
         // Configuration du timer
-        let timeLeft = 120; // 2 minutes en secondes
-        const timer = setInterval(updateTimer, 1000);
+        let timeLeft = 120;
+        let timer;
+        
+        function startTimer() {
+            timeLeft = 120;
+            updateTimerDisplay();
+            clearInterval(timer);
+            timer = setInterval(updateTimer, 1000);
+        }
         
         function updateTimer() {
             timeLeft--;
+            updateTimerDisplay();
+            
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                lockQuestionnaire();
+                alert('Le temps est écoulé! Le questionnaire est maintenant verrouillé.');
+            }
+        }
+        
+        function updateTimerDisplay() {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
             document.getElementById('time').textContent = 
                 (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-            
-            if (timeLeft <= 0) {
-                clearInterval(timer);
-                document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
-                    input.disabled = true;
-                });
-                document.getElementById('submit-btn').disabled = true;
-                alert('Le temps est écoulé! Le questionnaire est maintenant verrouillé.');
-            }
+        }
+        
+        function lockQuestionnaire() {
+            document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
+                input.disabled = true;
+            });
+            document.getElementById('submit-btn').disabled = true;
+        }
+        
+        function unlockQuestionnaire() {
+            document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
+                input.disabled = false;
+            });
+            document.getElementById('submit-btn').disabled = false;
         }
         
         // Gestion de la soumission du formulaire
         document.getElementById('quiz-form').addEventListener('submit', function(e) {
             e.preventDefault();
             
+            // Récupérer les données du formulaire
+            const nom = document.getElementById('nom').value;
+            const sexe = document.querySelector('input[name="sexe"]:checked').value;
+            const date = new Date();
+            
             // Calcul du score
             let score = 0;
+            const results = [];
             
             // Question 1
             const q1 = document.getElementById('q1').value.trim().toLowerCase();
-            if (q1 === 'ouagadougou') score += 1;
+            const q1Correct = q1 === 'ouagadougou';
+            if (q1Correct) score += 1;
+            results.push({ question: 1, correct: q1Correct });
             
             // Question 2
             const q2 = document.querySelector('input[name="q2"]:checked');
-            if (q2 && q2.value === 'Koudougou') score += 1;
+            const q2Correct = q2 && q2.value === 'Koudougou';
+            if (q2Correct) score += 1;
+            results.push({ question: 2, correct: q2Correct });
             
             // Question 3
             const q3 = document.querySelector('input[name="q3"]:checked');
-            if (q3 && q3.value === 'Vrai') score += 1;
+            const q3Correct = q3 && q3.value === 'Vrai';
+            if (q3Correct) score += 1;
+            results.push({ question: 3, correct: q3Correct });
             
             // Question 4
             const q4 = document.querySelector('input[name="q4"]:checked');
-            if (q4 && q4.value === 'rouge') score += 1;
+            const q4Correct = q4 && q4.value === 'rouge';
+            if (q4Correct) score += 1;
+            results.push({ question: 4, correct: q4Correct });
             
             // Question 5
             const q5 = document.getElementById('q5').value.trim();
-            if (q5 === '144') score += 1;
+            const q5Correct = q5 === '144';
+            if (q5Correct) score += 1;
+            results.push({ question: 5, correct: q5Correct });
             
             // Question 6
             const q6 = document.getElementById('q6').value.trim().toLowerCase();
-            if (q6 === 'françois') score += 1;
+            const q6Correct = q6 === 'françois';
+            if (q6Correct) score += 1;
+            results.push({ question: 6, correct: q6Correct });
             
             // Question 7
             const q7 = document.getElementById('q7').value.trim();
-            if (q7 === '17') score += 1;
+            const q7Correct = q7 === '17';
+            if (q7Correct) score += 1;
+            results.push({ question: 7, correct: q7Correct });
             
             // Question 8
             const q8 = document.getElementById('q8').value.trim().toLowerCase();
-            if (q8 === 'hervé') score += 1;
+            const q8Correct = q8 === 'hervé';
+            if (q8Correct) score += 1;
+            results.push({ question: 8, correct: q8Correct });
             
             // Question 9
             const q9 = document.getElementById('q9').value.trim();
-            if (q9 === '1960') score += 1;
+            const q9Correct = q9 === '1960';
+            if (q9Correct) score += 1;
+            results.push({ question: 9, correct: q9Correct });
             
             // Question 10
             const q10 = document.getElementById('q10').value.trim().toLowerCase();
-            if (q10 === 'lion') score += 1;
+            const q10Correct = q10 === 'lion';
+            if (q10Correct) score += 1;
+            results.push({ question: 10, correct: q10Correct });
             
-            // Afficher les résultats
-            document.getElementById('score-display').textContent = `Votre score: ${score}/10`;
-            document.getElementById('results').style.display = 'block';
+            // Stocker le résultat
+            const resultEntry = {
+                nom,
+                sexe,
+                score,
+                date: date.toLocaleString('fr-FR', options),
+                details: results
+            };
             
-            // Afficher le lien consolidé
-            document.getElementById('consolidated-link').style.display = 'block';
+            allResults.push(resultEntry);
             
-            // Configurer le lien des résultats
-            const resultsLink = document.getElementById('results-link');
-            resultsLink.href = `https://votresiteweb.com/resultats-consolides?code=1981&score=${score}&date=${now.toISOString()}`;
-            resultsLink.textContent = `https://votresiteweb.com/resultats-consolides?code=1981`;
+            // Afficher les résultats individuels
+            displayIndividualResults(resultEntry);
+            
+            // Afficher les résultats consolidés
+            displayConsolidatedResults();
             
             // Désactiver le bouton de soumission
             document.getElementById('submit-btn').disabled = true;
         });
         
+        function displayIndividualResults(result) {
+            const container = document.getElementById('individual-results');
+            container.innerHTML = '';
+            
+            result.details.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `Question ${index + 1}: <span class="${item.correct ? 'correct' : 'incorrect'}">${item.correct ? 'Correct (1 point)' : 'Incorrect (0 point)'}</span>`;
+                container.appendChild(div);
+            });
+            
+            document.getElementById('final-score').textContent = `Score final: ${result.score}/10`;
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        function displayConsolidatedResults() {
+            const tbody = document.getElementById('results-body');
+            tbody.innerHTML = '';
+            
+            allResults.forEach(result => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${result.nom}</td>
+                    <td>${result.sexe}</td>
+                    <td>${result.score}/10</td>
+                    <td>${result.date}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            document.getElementById('consolidated-results').style.display = 'block';
+        }
+        
         // Réinitialisation du formulaire
         document.getElementById('reset-btn').addEventListener('click', function() {
             document.getElementById('quiz-form').reset();
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('consolidated-link').style.display = 'none';
-            document.getElementById('submit-btn').disabled = false;
-            
-            // Réinitialiser le timer
-            timeLeft = 120;
-            document.getElementById('time').textContent = '02:00';
-            
-            // Réactiver tous les champs
-            document.getElementById('quiz-form').querySelectorAll('input').forEach(input => {
-                input.disabled = false;
-            });
+            unlockQuestionnaire();
+            startTimer();
         });
+        
+        // Démarrer le timer au chargement
+        startTimer();
     </script>
 </body>
 </html>
