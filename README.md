@@ -61,6 +61,51 @@
             color: red;
             font-weight: bold;
         }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +207,27 @@
         </div>
     </div>
 
+    <!-- Modal pour le code d'accès -->
+    <div id="codeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Accès aux résultats</h2>
+            <p>Veuillez entrer le code d'accès :</p>
+            <input type="password" id="accessCode" placeholder="Code d'accès">
+            <button id="validateCode">Valider</button>
+            <p id="codeError" style="color: red; display: none;">Code incorrect. Veuillez réessayer.</p>
+        </div>
+    </div>
+
+    <!-- Modal pour afficher les résultats consolidés -->
+    <div id="resultsModal" class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 800px;">
+            <span class="close">&times;</span>
+            <h2>Résultats Consolidés</h2>
+            <div id="resultsTable"></div>
+        </div>
+    </div>
+
     <script>
         // Définir les réponses correctes
         const correctAnswers = {
@@ -254,31 +320,9 @@
             return score;
         }
 
-        // Envoyer les données (simulé pour cet exemple)
+        // Envoyer les données
         function sendData(formData, score) {
-            // Dans une implémentation réelle, vous utiliseriez fetch() ou XMLHttpRequest
-            // pour envoyer les données à un serveur
-            
-            console.log("Données envoyées:", {
-                date: formData.get('collectionDate'),
-                nom: formData.get('fullName'),
-                sexe: formData.get('gender'),
-                reponses: {
-                    q1: formData.get('q1'),
-                    q2: formData.get('q2'),
-                    q3: formData.get('q3'),
-                    q4: formData.get('q4'),
-                    q5: formData.get('q5'),
-                    q6: formData.get('q6'),
-                    q7: formData.get('q7'),
-                    q8: formData.get('q8'),
-                    q9: formData.get('q9'),
-                    q10: formData.get('q10')
-                },
-                score: score
-            });
-            
-            // Stocker les données localement (simulation)
+            // Stocker les données localement
             const allResults = JSON.parse(localStorage.getItem('quizResults') || '[]');
             allResults.push({
                 date: formData.get('collectionDate'),
@@ -322,6 +366,123 @@
             startTimer();
         }
 
+        // Afficher les résultats consolidés
+        function showConsolidatedResults() {
+            const results = JSON.parse(localStorage.getItem('quizResults') || '[]');
+            const resultsTable = document.getElementById('resultsTable');
+            
+            if (results.length === 0) {
+                resultsTable.innerHTML = "<p>Aucun résultat disponible pour le moment.</p>";
+                return;
+            }
+            
+            let html = '<table>';
+            html += '<tr><th>Date</th><th>Nom</th><th>Sexe</th><th>Score</th><th>Détails</th></tr>';
+            
+            results.forEach(result => {
+                html += `<tr>
+                    <td>${result.date}</td>
+                    <td>${result.nom}</td>
+                    <td>${result.sexe}</td>
+                    <td>${result.score}/10</td>
+                    <td><button class="view-details" data-id="${results.indexOf(result)}">Voir</button></td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            resultsTable.innerHTML = html;
+            
+            // Ajouter les événements pour les boutons "Voir"
+            document.querySelectorAll('.view-details').forEach(button => {
+                button.addEventListener('click', function() {
+                    const resultId = this.getAttribute('data-id');
+                    const result = results[resultId];
+                    
+                    let detailsHtml = `<h3>Détails des réponses - ${result.nom}</h3>`;
+                    detailsHtml += `<p>Date: ${result.date} | Sexe: ${result.sexe} | Score: ${result.score}/10</p>`;
+                    detailsHtml += '<table>';
+                    detailsHtml += '<tr><th>Question</th><th>Réponse donnée</th><th>Réponse correcte</th></tr>';
+                    
+                    // Question 1
+                    detailsHtml += `<tr>
+                        <td>1. Capitale du Burkina Faso</td>
+                        <td>${result.reponses.q1}</td>
+                        <td>${correctAnswers.q1}</td>
+                    </tr>`;
+                    
+                    // Question 2
+                    detailsHtml += `<tr>
+                        <td>2. Capitale du Centre-Ouest</td>
+                        <td>${result.reponses.q2}</td>
+                        <td>${correctAnswers.q2}</td>
+                    </tr>`;
+                    
+                    // Question 3
+                    detailsHtml += `<tr>
+                        <td>3. Capitale de la Russie</td>
+                        <td>${result.reponses.q3}</td>
+                        <td>${correctAnswers.q3}</td>
+                    </tr>`;
+                    
+                    // Question 4
+                    detailsHtml += `<tr>
+                        <td>4. Couleur du vin</td>
+                        <td>${result.reponses.q4}</td>
+                        <td>${correctAnswers.q4}</td>
+                    </tr>`;
+                    
+                    // Question 5
+                    detailsHtml += `<tr>
+                        <td>5. Nombre d'os</td>
+                        <td>${result.reponses.q5}</td>
+                        <td>${correctAnswers.q5}</td>
+                    </tr>`;
+                    
+                    // Question 6
+                    detailsHtml += `<tr>
+                        <td>6. Nom du pape</td>
+                        <td>${result.reponses.q6}</td>
+                        <td>${correctAnswers.q6}</td>
+                    </tr>`;
+                    
+                    // Question 7
+                    detailsHtml += `<tr>
+                        <td>7. Nombre après 16</td>
+                        <td>${result.reponses.q7}</td>
+                        <td>${correctAnswers.q7}</td>
+                    </tr>`;
+                    
+                    // Question 8
+                    detailsHtml += `<tr>
+                        <td>8. Nom du concepteur</td>
+                        <td>${result.reponses.q8}</td>
+                        <td>${correctAnswers.q8}</td>
+                    </tr>`;
+                    
+                    // Question 9
+                    detailsHtml += `<tr>
+                        <td>9. Indépendance Burkina Faso</td>
+                        <td>${result.reponses.q9}</td>
+                        <td>${correctAnswers.q9}</td>
+                    </tr>`;
+                    
+                    // Question 10
+                    detailsHtml += `<tr>
+                        <td>10. Roi des animaux</td>
+                        <td>${result.reponses.q10}</td>
+                        <td>${correctAnswers.q10}</td>
+                    </tr>`;
+                    
+                    detailsHtml += '</table>';
+                    
+                    // Afficher les détails dans une alerte (pour simplifier)
+                    alert(detailsHtml);
+                });
+            });
+            
+            document.getElementById('resultsModal').style.display = 'block';
+        }
+
         // Gérer la soumission du formulaire
         document.getElementById('quizForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -341,7 +502,10 @@
                 document.getElementById('resultContainer').style.display = 'block';
                 
                 // Configurer le lien codé
-                document.getElementById('resultsLink').href = `results.html?code=1981`;
+                document.getElementById('resultsLink').onclick = function(e) {
+                    e.preventDefault();
+                    document.getElementById('codeModal').style.display = 'block';
+                };
                 
                 // Réinitialiser pour un nouveau questionnaire
                 setTimeout(resetForm, 3000);
@@ -350,6 +514,33 @@
 
         // Gérer le bouton de réinitialisation
         document.getElementById('resetBtn').addEventListener('click', resetForm);
+
+        // Gérer la modal de code d'accès
+        document.getElementById('validateCode').addEventListener('click', function() {
+            const enteredCode = document.getElementById('accessCode').value;
+            
+            if (enteredCode === "1981") {
+                document.getElementById('codeModal').style.display = 'none';
+                document.getElementById('codeError').style.display = 'none';
+                showConsolidatedResults();
+            } else {
+                document.getElementById('codeError').style.display = 'block';
+            }
+        });
+
+        // Fermer les modals
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', function() {
+                this.closest('.modal').style.display = 'none';
+            });
+        });
+
+        // Fermer les modals en cliquant à l'extérieur
+        window.addEventListener('click', function(event) {
+            if (event.target.className === 'modal') {
+                event.target.style.display = 'none';
+            }
+        });
 
         // Démarrer le timer au chargement
         startTimer();
