@@ -10,9 +10,13 @@
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
+            line-height: 1.6;
         }
         .form-group {
             margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
         }
         label {
             display: block;
@@ -22,62 +26,78 @@
         input[type="text"], input[type="number"], input[type="date"], select {
             width: 100%;
             padding: 8px;
+            margin-top: 5px;
             box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
         }
-        .radio-group, .checkbox-group {
-            margin: 5px 0;
+        .radio-group {
+            margin: 8px 0;
         }
         .timer {
             font-size: 1.2em;
             font-weight: bold;
             color: #d9534f;
-            margin-bottom: 15px;
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .locked {
+            background-color: #f2dede;
         }
         button {
             padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #submitBtn {
             background-color: #5cb85c;
             color: white;
-            border: none;
-            cursor: pointer;
-            margin-right: 10px;
+        }
+        #resetBtn {
+            background-color: #f0ad4e;
+            color: white;
         }
         button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
         }
-        .locked {
-            color: #d9534f;
-            font-weight: bold;
-        }
         #databaseLink {
-            display: block;
+            display: inline-block;
             margin-top: 20px;
-            text-align: center;
-            color: #337ab7;
+            padding: 10px 15px;
+            background-color: #337ab7;
+            color: white;
             text-decoration: none;
+            border-radius: 4px;
         }
         #databaseLink:hover {
-            text-decoration: underline;
+            background-color: #286090;
         }
     </style>
 </head>
 <body>
-    <h1>Questionnaire</h1>
-    <div class="timer" id="timer">Temps restant: 120 secondes</div>
+    <h1>Questionnaire Général</h1>
+    <div class="timer" id="timer">Temps restant: 02:00</div>
     
     <form id="quizForm">
         <div class="form-group">
-            <label>Date de collecte:</label>
+            <label for="collectionDate">Date de collecte:</label>
             <input type="date" id="collectionDate" name="collectionDate" required>
         </div>
         
         <div class="form-group">
-            <label>Nom:</label>
+            <label for="lastName">Nom:</label>
             <input type="text" id="lastName" name="lastName" required>
         </div>
         
         <div class="form-group">
-            <label>Prénom:</label>
+            <label for="firstName">Prénom:</label>
             <input type="text" id="firstName" name="firstName" required>
         </div>
         
@@ -180,8 +200,8 @@
             <input type="text" id="q10" name="q10" required>
         </div>
         
-        <div class="form-group">
-            <button type="button" id="submitBtn">Envoyer</button>
+        <div style="text-align: center; margin-top: 20px;">
+            <button type="button" id="submitBtn">Envoyer les réponses</button>
             <button type="button" id="resetBtn">Réinitialiser</button>
         </div>
         
@@ -190,10 +210,12 @@
         <input type="hidden" id="submissionTime" name="submissionTime">
     </form>
     
-    <a href="#" id="databaseLink">Accéder à la base de données</a>
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="resultat.html" id="databaseLink">Accéder aux résultats (Mot de passe requis)</a>
+    </div>
     
     <script>
-        // Réponses correctes
+        // Réponses correctes (insensible à la casse)
         const correctAnswers = {
             q1: "ouagadougou",
             q2: "koudougou",
@@ -209,7 +231,7 @@
         
         // Variables pour le chronomètre
         let timer;
-        let timeLeft = 120;
+        let timeLeft = 120; // 2 minutes en secondes
         let isTimerRunning = false;
         let startTime;
         
@@ -218,25 +240,21 @@
         const submitBtn = document.getElementById('submitBtn');
         const resetBtn = document.getElementById('resetBtn');
         const quizForm = document.getElementById('quizForm');
-        const databaseLink = document.getElementById('databaseLink');
         const inputs = quizForm.querySelectorAll('input[type="text"], input[type="number"], input[type="radio"], input[type="date"]');
         
-        // Initialiser la base de données si elle n'existe pas
-        if (!localStorage.getItem('quizDatabase')) {
-            localStorage.setItem('quizDatabase', JSON.stringify({
-                records: [],
-                password: "1981"
-            }));
+        // Initialiser le stockage local si nécessaire
+        if (!localStorage.getItem('quizResults')) {
+            localStorage.setItem('quizResults', JSON.stringify([]));
         }
         
-        // Démarrer le chronomètre lors de la première interaction
+        // Démarrer le chronomètre à la première interaction
         function startTimerOnFirstInteraction() {
             if (!isTimerRunning) {
                 startTimer();
                 isTimerRunning = true;
                 startTime = new Date();
                 
-                // Retirer les écouteurs après le premier démarrage
+                // Retirer les écouteurs après le démarrage
                 inputs.forEach(input => {
                     input.removeEventListener('focus', startTimerOnFirstInteraction);
                     input.removeEventListener('click', startTimerOnFirstInteraction);
@@ -244,17 +262,24 @@
             }
         }
         
-        // Ajouter des écouteurs pour démarrer le chronomètre
+        // Ajouter des écouteurs d'événements pour démarrer le timer
         inputs.forEach(input => {
             input.addEventListener('focus', startTimerOnFirstInteraction);
             input.addEventListener('click', startTimerOnFirstInteraction);
         });
         
-        // Fonction pour démarrer le chronomètre
+        // Formatage du temps (mm:ss)
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
+        }
+        
+        // Démarrer le chronomètre
         function startTimer() {
             timer = setInterval(() => {
                 timeLeft--;
-                timerElement.textContent = `Temps restant: ${timeLeft} secondes`;
+                timerElement.textContent = `Temps restant: ${formatTime(timeLeft)}`;
                 
                 if (timeLeft <= 0) {
                     clearInterval(timer);
@@ -278,57 +303,37 @@
             let score = 0;
             
             // Question 1
-            if (document.getElementById('q1').value.trim().toLowerCase() === correctAnswers.q1) {
-                score += 1;
-            }
+            if (document.getElementById('q1').value.trim().toLowerCase() === correctAnswers.q1) score++;
             
             // Question 2
             const q2Selected = document.querySelector('input[name="q2"]:checked');
-            if (q2Selected && q2Selected.value.toLowerCase() === correctAnswers.q2) {
-                score += 1;
-            }
+            if (q2Selected && q2Selected.value.toLowerCase() === correctAnswers.q2) score++;
             
             // Question 3
             const q3Selected = document.querySelector('input[name="q3"]:checked');
-            if (q3Selected && q3Selected.value.toLowerCase() === correctAnswers.q3) {
-                score += 1;
-            }
+            if (q3Selected && q3Selected.value.toLowerCase() === correctAnswers.q3) score++;
             
             // Question 4
             const q4Selected = document.querySelector('input[name="q4"]:checked');
-            if (q4Selected && q4Selected.value.toLowerCase() === correctAnswers.q4) {
-                score += 1;
-            }
+            if (q4Selected && q4Selected.value.toLowerCase() === correctAnswers.q4) score++;
             
             // Question 5
-            if (document.getElementById('q5').value.trim().toLowerCase() === correctAnswers.q5) {
-                score += 1;
-            }
+            if (document.getElementById('q5').value.trim().toLowerCase() === correctAnswers.q5) score++;
             
             // Question 6
-            if (document.getElementById('q6').value.trim().toLowerCase() === correctAnswers.q6) {
-                score += 1;
-            }
+            if (document.getElementById('q6').value.trim().toLowerCase() === correctAnswers.q6) score++;
             
             // Question 7
-            if (document.getElementById('q7').value.trim().toLowerCase() === correctAnswers.q7) {
-                score += 1;
-            }
+            if (document.getElementById('q7').value.trim().toLowerCase() === correctAnswers.q7) score++;
             
             // Question 8
-            if (document.getElementById('q8').value.trim().toLowerCase() === correctAnswers.q8) {
-                score += 1;
-            }
+            if (document.getElementById('q8').value.trim().toLowerCase() === correctAnswers.q8) score++;
             
             // Question 9
-            if (document.getElementById('q9').value.trim().toLowerCase() === correctAnswers.q9) {
-                score += 1;
-            }
+            if (document.getElementById('q9').value.trim().toLowerCase() === correctAnswers.q9) score++;
             
             // Question 10
-            if (document.getElementById('q10').value.trim().toLowerCase() === correctAnswers.q10) {
-                score += 1;
-            }
+            if (document.getElementById('q10').value.trim().toLowerCase() === correctAnswers.q10) score++;
             
             return score;
         }
@@ -337,8 +342,7 @@
         function calculateTimeSpent() {
             if (startTime) {
                 const endTime = new Date();
-                const timeDiff = endTime - startTime; // en millisecondes
-                return Math.floor(timeDiff / 1000); // convertir en secondes
+                return Math.floor((endTime - startTime) / 1000); // en secondes
             }
             return 0;
         }
@@ -349,28 +353,29 @@
             const timeSpent = calculateTimeSpent();
             const submissionTime = new Date().toISOString();
             
-            // Stocker le score, le temps passé et l'heure de soumission dans des champs cachés
+            // Stocker les métadonnées
             document.getElementById('score').value = score;
             document.getElementById('timeSpent').value = timeSpent;
             document.getElementById('submissionTime').value = submissionTime;
             
-            // Récupérer les données du formulaire
+            // Collecter toutes les données du formulaire
             const formData = new FormData(quizForm);
-            const data = {};
+            const result = {};
+            
             formData.forEach((value, key) => {
-                data[key] = value;
+                result[key] = value;
             });
             
-            // Ajouter l'heure de soumission
-            data.submissionTime = submissionTime;
+            // Ajouter l'horodatage
+            result.submissionTime = submissionTime;
             
-            // Enregistrer dans la base de données
-            const db = JSON.parse(localStorage.getItem('quizDatabase'));
-            db.records.push(data);
-            localStorage.setItem('quizDatabase', JSON.stringify(db));
+            // Enregistrer dans le stockage local
+            const results = JSON.parse(localStorage.getItem('quizResults'));
+            results.push(result);
+            localStorage.setItem('quizResults', JSON.stringify(results));
             
             // Afficher le résultat
-            alert(`Questionnaire soumis!\nScore: ${score}/10\nTemps passé: ${timeSpent} secondes`);
+            alert(`Merci pour votre participation!\nVotre score: ${score}/10\nTemps passé: ${timeSpent} secondes`);
             
             // Réinitialiser le formulaire
             resetForm();
@@ -382,121 +387,314 @@
             clearInterval(timer);
             timeLeft = 120;
             isTimerRunning = false;
-            timerElement.textContent = "Temps restant: 120 secondes";
+            timerElement.textContent = "Temps restant: 02:00";
             timerElement.classList.remove('locked');
             
-            // Réactiver tous les champs
+            // Réactiver les champs
             inputs.forEach(input => {
                 input.disabled = false;
             });
             submitBtn.disabled = false;
             
-            // Réattacher les écouteurs pour le prochain démarrage
+            // Réattacher les écouteurs pour le prochain questionnaire
             inputs.forEach(input => {
                 input.addEventListener('focus', startTimerOnFirstInteraction);
                 input.addEventListener('click', startTimerOnFirstInteraction);
             });
         }
         
-        // Afficher la base de données
-        function showDatabase() {
-            const password = prompt("Entrez le mot de passe pour accéder à la base de données:");
-            const db = JSON.parse(localStorage.getItem('quizDatabase'));
-            
-            if (password === db.password) {
-                // Trier les enregistrements par ordre chronologique (du plus récent au plus ancien)
-                const sortedRecords = db.records.sort((a, b) => 
-                    new Date(b.submissionTime) - new Date(a.submissionTime));
-                
-                // Créer une nouvelle fenêtre pour afficher la base de données
-                const dbWindow = window.open("", "_blank");
-                dbWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html lang="fr">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Base de données - Questionnaire</title>
-                        <style>
-                            body {
-                                font-family: Arial, sans-serif;
-                                margin: 20px;
-                            }
-                            h1 {
-                                color: #337ab7;
-                                text-align: center;
-                            }
-                            table {
-                                width: 100%;
-                                border-collapse: collapse;
-                                margin-top: 20px;
-                            }
-                            th, td {
-                                border: 1px solid #ddd;
-                                padding: 8px;
-                                text-align: left;
-                            }
-                            th {
-                                background-color: #f2f2f2;
-                                position: sticky;
-                                top: 0;
-                            }
-                            tr:nth-child(even) {
-                                background-color: #f9f9f9;
-                            }
-                            tr:hover {
-                                background-color: #f1f1f1;
-                            }
-                            .score-cell {
-                                font-weight: bold;
-                                text-align: center;
-                            }
-                            .good-score {
-                                color: #5cb85c;
-                            }
-                            .bad-score {
-                                color: #d9534f;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>Base de données des réponses</h1>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Nom</th>
-                                    <th>Prénom</th>
-                                    <th>Sexe</th>
-                                    <th>Score</th>
-                                    <th>Temps passé</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${sortedRecords.map(record => `
-                                    <tr>
-                                        <td>${new Date(record.submissionTime).toLocaleString()}</td>
-                                        <td>${record.lastName}</td>
-                                        <td>${record.firstName}</td>
-                                        <td>${record.gender}</td>
-                                        <td class="score-cell ${record.score >= 5 ? 'good-score' : 'bad-score'}">${record.score}/10</td>
-                                        <td>${record.timeSpent} sec</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </body>
-                    </html>
-                `);
-            } else if (password !== null) {
-                alert("Mot de passe incorrect!");
-            }
-        }
-        
         // Écouteurs d'événements
         submitBtn.addEventListener('click', submitData);
         resetBtn.addEventListener('click', resetForm);
-        databaseLink.addEventListener('click', showDatabase);
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Résultats du Questionnaire</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .password-form {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .password-form input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .password-form button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .password-form button:hover {
+            background-color: #2980b9;
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #e9e9e9;
+        }
+        .score {
+            font-weight: bold;
+            text-align: center;
+        }
+        .high-score {
+            color: #27ae60;
+        }
+        .medium-score {
+            color: #f39c12;
+        }
+        .low-score {
+            color: #e74c3c;
+        }
+        .stats {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #ecf0f1;
+            border-radius: 4px;
+        }
+        .export-btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .export-btn:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="passwordContainer">
+        <div class="password-form">
+            <h2>Accès aux résultats</h2>
+            <p>Veuillez entrer le mot de passe pour accéder aux données</p>
+            <input type="password" id="passwordInput" placeholder="Mot de passe">
+            <button id="loginBtn">Accéder</button>
+            <div id="errorMsg" class="error"></div>
+        </div>
+    </div>
+    
+    <div class="container" id="resultsContainer" style="display: none;">
+        <h1>Résultats du Questionnaire</h1>
+        
+        <div class="stats">
+            <h3>Statistiques globales</h3>
+            <p id="totalSubmissions">Nombre total de soumissions: 0</p>
+            <p id="averageScore">Score moyen: 0/10</p>
+            <p id="bestScore">Meilleur score: 0/10</p>
+            <button id="exportBtn" class="export-btn">Exporter les données (CSV)</button>
+        </div>
+        
+        <div style="overflow-x: auto;">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>Date/Heure</th>
+                        <th>Nom</th>
+                        <th>Prénom</th>
+                        <th>Sexe</th>
+                        <th>Score</th>
+                        <th>Temps (s)</th>
+                        <th>Détails</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <!-- Les données seront insérées ici par JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Éléments du DOM
+        const passwordContainer = document.getElementById('passwordContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const passwordInput = document.getElementById('passwordInput');
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const resultsBody = document.getElementById('resultsBody');
+        const totalSubmissions = document.getElementById('totalSubmissions');
+        const averageScore = document.getElementById('averageScore');
+        const bestScore = document.getElementById('bestScore');
+        const exportBtn = document.getElementById('exportBtn');
+        
+        // Mot de passe
+        const CORRECT_PASSWORD = "1981";
+        
+        // Vérifier le mot de passe
+        loginBtn.addEventListener('click', () => {
+            if (passwordInput.value === CORRECT_PASSWORD) {
+                passwordContainer.style.display = 'none';
+                resultsContainer.style.display = 'block';
+                loadResults();
+            } else {
+                errorMsg.textContent = "Mot de passe incorrect. Veuillez réessayer.";
+            }
+        });
+        
+        // Permettre aussi la validation avec Entrée
+        passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loginBtn.click();
+            }
+        });
+        
+        // Charger les résultats depuis le localStorage
+        function loadResults() {
+            const results = JSON.parse(localStorage.getItem('quizResults')) || [];
+            
+            // Trier par date (du plus récent au plus ancien)
+            results.sort((a, b) => new Date(b.submissionTime) - new Date(a.submissionTime));
+            
+            // Afficher les statistiques
+            totalSubmissions.textContent = `Nombre total de soumissions: ${results.length}`;
+            
+            if (results.length > 0) {
+                const scores = results.map(r => parseInt(r.score));
+                const sum = scores.reduce((a, b) => a + b, 0);
+                const avg = (sum / results.length).toFixed(1);
+                const max = Math.max(...scores);
+                
+                averageScore.textContent = `Score moyen: ${avg}/10`;
+                bestScore.textContent = `Meilleur score: ${max}/10`;
+            }
+            
+            // Afficher les résultats dans le tableau
+            resultsBody.innerHTML = '';
+            
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                
+                // Déterminer la classe CSS pour le score
+                let scoreClass = 'low-score';
+                if (result.score >= 7) scoreClass = 'high-score';
+                else if (result.score >= 4) scoreClass = 'medium-score';
+                
+                row.innerHTML = `
+                    <td>${new Date(result.submissionTime).toLocaleString()}</td>
+                    <td>${result.lastName}</td>
+                    <td>${result.firstName}</td>
+                    <td>${result.gender}</td>
+                    <td class="score ${scoreClass}">${result.score}/10</td>
+                    <td>${result.timeSpent}</td>
+                    <td><button onclick="showDetails('${result.submissionTime}')">Voir</button></td>
+                `;
+                
+                resultsBody.appendChild(row);
+            });
+        }
+        
+        // Afficher les détails d'une soumission
+        function showDetails(submissionTime) {
+            const results = JSON.parse(localStorage.getItem('quizResults')) || [];
+            const result = results.find(r => r.submissionTime === submissionTime);
+            
+            if (result) {
+                let details = `Détails de la soumission du ${new Date(result.submissionTime).toLocaleString()}\n\n`;
+                details += `Nom: ${result.lastName} ${result.firstName}\n`;
+                details += `Sexe: ${result.gender}\n`;
+                details += `Score: ${result.score}/10\n`;
+                details += `Temps passé: ${result.timeSpent} secondes\n\n`;
+                
+                // Ajouter les réponses aux questions
+                for (let i = 1; i <= 10; i++) {
+                    details += `Question ${i}: ${result['q'+i] || 'Non répondue'}\n`;
+                }
+                
+                alert(details);
+            }
+        }
+        
+        // Exporter les données en CSV
+        exportBtn.addEventListener('click', () => {
+            const results = JSON.parse(localStorage.getItem('quizResults')) || [];
+            
+            if (results.length === 0) {
+                alert("Aucune donnée à exporter.");
+                return;
+            }
+            
+            // Créer l'en-tête CSV
+            let csv = "Date;Nom;Prénom;Sexe;Score;Temps (s)\n";
+            
+            // Ajouter les données
+            results.forEach(result => {
+                csv += `"${new Date(result.submissionTime).toLocaleString()}";`;
+                csv += `"${result.lastName}";`;
+                csv += `"${result.firstName}";`;
+                csv += `"${result.gender}";`;
+                csv += `"${result.score}";`;
+                csv += `"${result.timeSpent}"\n`;
+            });
+            
+            // Créer un blob et un lien de téléchargement
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `resultats_questionnaire_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
     </script>
 </body>
 </html>
