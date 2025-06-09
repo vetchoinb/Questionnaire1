@@ -19,7 +19,7 @@
             margin-bottom: 5px;
             font-weight: bold;
         }
-        input[type="text"], select {
+        input[type="text"], input[type="number"], input[type="date"], select {
             width: 100%;
             padding: 8px;
             box-sizing: border-box;
@@ -49,6 +49,16 @@
             color: #d9534f;
             font-weight: bold;
         }
+        #databaseLink {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+            color: #337ab7;
+            text-decoration: none;
+        }
+        #databaseLink:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -74,11 +84,11 @@
         <div class="form-group">
             <label>Sexe:</label>
             <div class="radio-group">
-                <input type="radio" id="male" name="gender" value="homme" required>
+                <input type="radio" id="male" name="gender" value="Homme" required>
                 <label for="male" style="display: inline;">Homme</label>
             </div>
             <div class="radio-group">
-                <input type="radio" id="female" name="gender" value="femme">
+                <input type="radio" id="female" name="gender" value="Femme">
                 <label for="female" style="display: inline;">Femme</label>
             </div>
         </div>
@@ -177,7 +187,10 @@
         
         <input type="hidden" id="score" name="score">
         <input type="hidden" id="timeSpent" name="timeSpent">
+        <input type="hidden" id="submissionTime" name="submissionTime">
     </form>
+    
+    <a href="#" id="databaseLink">Accéder à la base de données</a>
     
     <script>
         // Réponses correctes
@@ -205,7 +218,16 @@
         const submitBtn = document.getElementById('submitBtn');
         const resetBtn = document.getElementById('resetBtn');
         const quizForm = document.getElementById('quizForm');
+        const databaseLink = document.getElementById('databaseLink');
         const inputs = quizForm.querySelectorAll('input[type="text"], input[type="number"], input[type="radio"], input[type="date"]');
+        
+        // Initialiser la base de données si elle n'existe pas
+        if (!localStorage.getItem('quizDatabase')) {
+            localStorage.setItem('quizDatabase', JSON.stringify({
+                records: [],
+                password: "1981"
+            }));
+        }
         
         // Démarrer le chronomètre lors de la première interaction
         function startTimerOnFirstInteraction() {
@@ -325,26 +347,30 @@
         function submitData() {
             const score = calculateScore();
             const timeSpent = calculateTimeSpent();
+            const submissionTime = new Date().toISOString();
             
-            // Stocker le score et le temps passé dans des champs cachés
+            // Stocker le score, le temps passé et l'heure de soumission dans des champs cachés
             document.getElementById('score').value = score;
             document.getElementById('timeSpent').value = timeSpent;
+            document.getElementById('submissionTime').value = submissionTime;
             
-            // Ici, vous devriez normalement envoyer les données au serveur
-            // Pour cet exemple, nous allons simplement afficher les résultats
-            alert(`Questionnaire soumis!\nScore: ${score}/10\nTemps passé: ${timeSpent} secondes`);
-            
-            // Enregistrer dans le localStorage pour simuler une base de données
+            // Récupérer les données du formulaire
             const formData = new FormData(quizForm);
             const data = {};
             formData.forEach((value, key) => {
                 data[key] = value;
             });
             
-            // Récupérer les enregistrements existants ou initialiser un nouveau tableau
-            const records = JSON.parse(localStorage.getItem('quizRecords')) || [];
-            records.push(data);
-            localStorage.setItem('quizRecords', JSON.stringify(records));
+            // Ajouter l'heure de soumission
+            data.submissionTime = submissionTime;
+            
+            // Enregistrer dans la base de données
+            const db = JSON.parse(localStorage.getItem('quizDatabase'));
+            db.records.push(data);
+            localStorage.setItem('quizDatabase', JSON.stringify(db));
+            
+            // Afficher le résultat
+            alert(`Questionnaire soumis!\nScore: ${score}/10\nTemps passé: ${timeSpent} secondes`);
             
             // Réinitialiser le formulaire
             resetForm();
@@ -372,70 +398,105 @@
             });
         }
         
-        // Écouteurs d'événements
-        submitBtn.addEventListener('click', submitData);
-        resetBtn.addEventListener('click', resetForm);
-        
-        // Simuler l'accès à la base de données avec le mot de passe 1981
-        function accessDatabase() {
+        // Afficher la base de données
+        function showDatabase() {
             const password = prompt("Entrez le mot de passe pour accéder à la base de données:");
-            if (password === "1981") {
-                const records = JSON.parse(localStorage.getItem('quizRecords')) || [];
-                if (records.length > 0) {
-                    let output = "<h2>Base de données - Enregistrements</h2><table border='1'><tr>";
-                    
-                    // En-têtes du tableau
-                    for (const key in records[0]) {
-                        output += `<th>${key}</th>`;
-                    }
-                    output += "</tr>";
-                    
-                    // Données
-                    records.forEach(record => {
-                        output += "<tr>";
-                        for (const key in record) {
-                            output += `<td>${record[key]}</td>`;
-                        }
-                        output += "</tr>";
-                    });
-                    
-                    output += "</table>";
-                    
-                    // Afficher dans une nouvelle fenêtre
-                    const win = window.open("", "_blank");
-                    win.document.write(`
-                        <!DOCTYPE html>
-                        <html>
-                        <head>
-                            <title>Base de données - Questionnaire</title>
-                            <style>
-                                body { font-family: Arial, sans-serif; margin: 20px; }
-                                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                                th { background-color: #f2f2f2; }
-                            </style>
-                        </head>
-                        <body>
-                            ${output}
-                        </body>
-                        </html>
-                    `);
-                } else {
-                    alert("La base de données est vide.");
-                }
+            const db = JSON.parse(localStorage.getItem('quizDatabase'));
+            
+            if (password === db.password) {
+                // Trier les enregistrements par ordre chronologique (du plus récent au plus ancien)
+                const sortedRecords = db.records.sort((a, b) => 
+                    new Date(b.submissionTime) - new Date(a.submissionTime));
+                
+                // Créer une nouvelle fenêtre pour afficher la base de données
+                const dbWindow = window.open("", "_blank");
+                dbWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Base de données - Questionnaire</title>
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                margin: 20px;
+                            }
+                            h1 {
+                                color: #337ab7;
+                                text-align: center;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-top: 20px;
+                            }
+                            th, td {
+                                border: 1px solid #ddd;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                            th {
+                                background-color: #f2f2f2;
+                                position: sticky;
+                                top: 0;
+                            }
+                            tr:nth-child(even) {
+                                background-color: #f9f9f9;
+                            }
+                            tr:hover {
+                                background-color: #f1f1f1;
+                            }
+                            .score-cell {
+                                font-weight: bold;
+                                text-align: center;
+                            }
+                            .good-score {
+                                color: #5cb85c;
+                            }
+                            .bad-score {
+                                color: #d9534f;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Base de données des réponses</h1>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Nom</th>
+                                    <th>Prénom</th>
+                                    <th>Sexe</th>
+                                    <th>Score</th>
+                                    <th>Temps passé</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sortedRecords.map(record => `
+                                    <tr>
+                                        <td>${new Date(record.submissionTime).toLocaleString()}</td>
+                                        <td>${record.lastName}</td>
+                                        <td>${record.firstName}</td>
+                                        <td>${record.gender}</td>
+                                        <td class="score-cell ${record.score >= 5 ? 'good-score' : 'bad-score'}">${record.score}/10</td>
+                                        <td>${record.timeSpent} sec</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </body>
+                    </html>
+                `);
             } else if (password !== null) {
                 alert("Mot de passe incorrect!");
             }
         }
         
-        // Ajouter un lien pour accéder à la base de données
-        const dbLink = document.createElement('a');
-        dbLink.href = "#";
-        dbLink.textContent = "Accéder à la base de données";
-        dbLink.style.display = "block";
-        dbLink.style.marginTop = "20px";
-        dbLink.addEventListener('click', accessDatabase);
-        document.body.appendChild(dbLink);
+        // Écouteurs d'événements
+        submitBtn.addEventListener('click', submitData);
+        resetBtn.addEventListener('click', resetForm);
+        databaseLink.addEventListener('click', showDatabase);
     </script>
 </body>
 </html>
